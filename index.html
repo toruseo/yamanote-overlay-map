@@ -1,0 +1,358 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>山手線オーバーレイ地図</title>
+
+  <!-- Leaflet CSS -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+  <!-- Leaflet JS -->
+  <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+
+  <style>
+    html, body {
+      margin: 0; padding: 0; width: 100%; height: 100vh;
+    }
+    #map {
+      width: 100%; height: 90%;
+    }
+    #controls {
+      height: 10%; padding: 8px;
+      box-sizing: border-box;
+      background: #f5f5f5;
+    }
+  </style>
+</head>
+<body>
+
+<!-- 地図表示領域 -->
+<div id="map"></div>
+
+<!-- チェックボックスなどのUI -->
+<div id="controls">
+  <label>
+    <input type="checkbox" id="cbTokyo" />
+    山手線
+  </label>
+  <label>
+    <input type="checkbox" id="cbManhattan" />
+    東京都（本州部分）
+  </label>
+  <label>
+    <input type="checkbox" id="cbScitokyo" />
+    東京科学大学（大岡山）
+  </label>
+</div>
+
+<script>
+/**********************************************************************
+ * 1. 図形を定義
+ * source:
+ *   https://qiita.com/butchi_y/items/3a6b70b38e13dc56ef13
+ *   https://www.e-stat.go.jp/gis/statmap-search?page=1&type=2&aggregateUnitForBoundary=A&toukeiCode=00200521&toukeiYear=2015&serveyId=A002005212015&prefCode=13&coordsys=2&format=shape
+ *   https://www.openstreetmap.org
+ **********************************************************************/
+const tokyo23Line = {
+  type: "Feature",
+  properties: { name: "Yamanote line" },
+  geometry: {
+    type: "LineString",
+    coordinates: [
+      [139.770883, 35.69169], // 神田
+[139.774219, 35.698683], // 秋葉原
+[139.774632, 35.707438], // 御徒町
+[139.777254, 35.713768], // 上野
+[139.778837, 35.720495], // 鶯谷
+[139.770987, 35.727772], // 日暮里
+[139.766787, 35.732135], // 西日暮里
+[139.76086, 35.738062], // 田端
+[139.746875, 35.736489], // 駒込
+[139.739345, 35.733492], // 巣鴨
+[139.728662, 35.731401], // 大塚
+[139.71038, 35.728926], // 池袋
+[139.706587, 35.721204], // 目白
+[139.703782, 35.712285], // 高田馬場
+[139.700044, 35.701306], // 新大久保
+[139.700258, 35.690921], // 新宿
+[139.702042, 35.683061], // 代々木
+[139.702687, 35.670168], // 原宿
+[139.701334, 35.658517], // 渋谷
+[139.710106, 35.64669], // 恵比寿
+[139.715828, 35.633998], // 目黒
+[139.723444, 35.626446], // 五反田
+[139.728553, 35.6197], // 大崎
+[139.74044, 35.630152], // 品川
+[139.747575, 35.645736], // 田町
+[139.756749, 35.655646], // 浜松町
+[139.75964, 35.665498], // 新橋
+[139.763328, 35.675069], // 有楽町
+[139.766084, 35.681382],  // 東京
+      [139.770883, 35.69169], // 神田
+
+    ]
+  }
+};
+
+const manhattanLine = {
+  type: "Feature",
+  properties: { name: "Tokyo prefecture mainland (approx)" },
+  geometry: {
+    type: "LineString",
+    coordinates: [
+[ 139.250943386143348, 35.602924300250116 ], [ 139.211256996643101, 35.649061942269519 ], [ 139.178735976009506, 35.645608536104824 ], [ 139.161628948764445, 35.667845838368557 ], [ 139.025620014834118, 35.719350067029048 ], [ 138.984324978148408, 35.767910152055961 ], [ 138.945300529367614, 35.868127116174939 ], [ 139.0182048016012, 35.898367022415222 ], [ 139.192534193976144, 35.84015821106977 ], [ 139.279871026958006, 35.841116140209373 ], [ 139.315036893932046, 35.824985910435451 ], [ 139.325305981193395, 35.795485454296461 ], [ 139.369991115450318, 35.791880916871321 ], [ 139.391868463492642, 35.763088657937693 ], [ 139.496882794801252, 35.778351411301188 ], [ 139.542221201920285, 35.807265360240919 ], [ 139.543196192790532, 35.77980319219153 ], [ 139.516289704649466, 35.76565674287901 ], [ 139.547628004832802, 35.774283335929518 ], [ 139.547112800281184, 35.753551169769565 ], [ 139.571501655734579, 35.763438446153522 ], [ 139.588748986660136, 35.778808897701516 ], [ 139.623192316763863, 35.766675155285114 ], [ 139.640284145236791, 35.798152280226766 ], [ 139.690923063455642, 35.800948757313733 ], [ 139.738039684192927, 35.780207561010492 ], [ 139.766311736945568, 35.817410735829519 ], [ 139.793032100819715, 35.80521261422637 ], [ 139.821233941272538, 35.815034832445413 ], [ 139.825836486181032, 35.793475028014143 ], [ 139.872671423321378, 35.796860871664435 ], [ 139.873946300469072, 35.781824341410079 ], [ 139.893781569723728, 35.782772749564245 ], [ 139.879885356422932, 35.76615109092797 ], [ 139.921105786812461, 35.703166774413106 ], [ 139.886615177377564, 35.679019043624038 ], [ 139.882614636121389, 35.645130125343016 ], [ 139.84147060659069, 35.649441658621058 ], [ 139.835459110400791, 35.595130183514328 ], [ 139.809986541914299, 35.614268840872931 ], [ 139.788659897345156, 35.596402086033997 ], [ 139.827452659924063, 35.56490540509251 ], [ 139.803051643267963, 35.535925628060227 ], [ 139.825872257943644, 35.541790336948495 ], [ 139.802441617269238, 35.52086178990676 ], [ 139.800839407801277, 35.534877950049442 ], [ 139.755330508175263, 35.545119876782714 ], [ 139.702653116168051, 35.53647772237256 ], [ 139.664457461408546, 35.589721310937065 ], [ 139.530287454950098, 35.642069217079104 ], [ 139.494813986106436, 35.61653575489472 ], [ 139.499953454615053, 35.605227565453688 ], [ 139.462816331976882, 35.624951096880409 ], [ 139.452827228250982, 35.618127604784192 ], [ 139.448888406390438, 35.611739145765128 ], [ 139.507435025366703, 35.575546868517044 ], [ 139.48925265529823, 35.561552896715384 ], [ 139.48544390220232, 35.584808163974962 ], [ 139.469452809326413, 35.569554581636545 ], [ 139.487067855669324, 35.535718413811956 ], [ 139.476541529708868, 35.501308334241592 ], [ 139.39942899399486, 35.584686763225932 ], [ 139.285305452523573, 35.613361831016938 ], [ 139.250943386143348, 35.602924300250116 ] 
+
+    ]
+  }
+};
+
+const scitokyoLine = {
+  type: "Feature",
+  properties: { name: "SciTokyo Oookayama" },
+  geometry: {
+    type: "LineString",
+    coordinates: [
+      [ 139.684912040791119, 35.607699888685431 ], [ 139.685233940287389, 35.607006777572124 ], [ 139.685111604208146, 35.605210938591355 ], [ 139.684873279172251, 35.605228336730313 ], [ 139.684821941915118, 35.604874443152823 ], [ 139.68483957944818, 35.604708164630487 ], [ 139.684594623864456, 35.603626910751274 ], [ 139.684692128080883, 35.603614646994409 ], [ 139.684574257977943, 35.602926301374971 ], [ 139.684652275074825, 35.60290870613418 ], [ 139.684593005399137, 35.602160281556543 ], [ 139.685221272058669, 35.602125672316383 ], [ 139.685278486412784, 35.601640994825338 ], [ 139.685181117271895, 35.600406006511719 ], [ 139.685220414650217, 35.600239754433858 ], [ 139.683657310112551, 35.599774305094911 ], [ 139.683734000803639, 35.600467908303983 ], [ 139.683797695687133, 35.60116149526074 ], [ 139.684215887610662, 35.602265964648716 ], [ 139.683084541546037, 35.60257593022606 ], [ 139.68288925035128, 35.602752601806309 ], [ 139.682575588070279, 35.603672168901163 ], [ 139.682211817328863, 35.60358679397153 ], [ 139.68218544971225, 35.60378490591885 ], [ 139.682228069705502, 35.604160019560076 ], [ 139.680941254347943, 35.604186705556671 ], [ 139.680732520232567, 35.604593346299225 ], [ 139.680618730897805, 35.605194713672013 ], [ 139.680309857463897, 35.605855984446102 ], [ 139.680148795107897, 35.606252069676259 ], [ 139.679680592264702, 35.606396543974761 ], [ 139.679775498191532, 35.606612501377867 ], [ 139.679609280047089, 35.607436713761103 ], [ 139.679085205845979, 35.607340509919588 ], [ 139.678924589950498, 35.607499527783951 ], [ 139.678551084110183, 35.60796256607059 ], [ 139.677972408780192, 35.60921437984674 ], [ 139.677982078923009, 35.60925508276847 ], [ 139.67798818140767, 35.609460312053429 ], [ 139.678280530427401, 35.609520839694113 ], [ 139.678478502151876, 35.609091190779246 ], [ 139.679620227830554, 35.609074961108064 ], [ 139.679746733150921, 35.608061399218776 ], [ 139.680745779317988, 35.607878676763157 ], [ 139.681268248379752, 35.607681192340621 ], [ 139.681972402149881, 35.607636080959963 ], [ 139.682282241401083, 35.607609932486248 ], [ 139.682882703616372, 35.607407231336154 ], [ 139.683472179317306, 35.607285894463011 ], [ 139.684790678781411, 35.607724507254552 ], [ 139.684913127239099, 35.607698120872797 ], [ 139.684913127239099, 35.607698120872797 ] 
+    ]
+  }
+};
+
+/**********************************************************************
+ * 2. それぞれの図形について
+ *    - (元の中心) をバウンディングボックスから求める
+ *    - 各頂点までの「距離(m)」「方位角(度)」を算出しておく
+ *
+ *    -> 地図上で中心が変わったとき、その距離＆方位角を使って
+ *       新しい中心へ再配置(geodesic計算)すれば、
+ *       場所を変えても実際の長さが変わらない図形になる。
+ **********************************************************************/
+
+// 地球半径(平均)
+const EARTH_RADIUS = 6371008.8; // [m]
+
+function toRad(deg) { return deg * Math.PI / 180; }
+function toDeg(rad) { return rad * 180 / Math.PI; }
+
+/** 球面距離 (ハバーサイン) */
+function haversineDistance(lat1, lon1, lat2, lon2) {
+  const phi1 = toRad(lat1), phi2 = toRad(lat2);
+  const dPhi = toRad(lat2 - lat1);
+  const dLambda = toRad(lon2 - lon1);
+
+  const a = Math.sin(dPhi/2)**2
+          + Math.cos(phi1)*Math.cos(phi2)*(Math.sin(dLambda/2)**2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return EARTH_RADIUS * c;
+}
+
+/** 初期ベアリング(中心→頂点) */
+function initialBearing(lat1, lon1, lat2, lon2) {
+  const phi1 = toRad(lat1);
+  const phi2 = toRad(lat2);
+  const lam1 = toRad(lon1);
+  const lam2 = toRad(lon2);
+
+  const y = Math.sin(lam2 - lam1) * Math.cos(phi2);
+  const x = Math.cos(phi1)*Math.sin(phi2)
+          - Math.sin(phi1)*Math.cos(phi2)*Math.cos(lam2 - lam1);
+  const brng = toDeg(Math.atan2(y, x));
+  return (brng + 360) % 360; // 0~360に正規化
+}
+
+/** (lat,lon)から距離(m) & 方位角(deg)で進んだ地点を求める(球面) */
+function destinationPoint(lat, lon, distanceM, bearingDeg) {
+  const phi1 = toRad(lat);
+  const lam1 = toRad(lon);
+  const theta = toRad(bearingDeg);
+  const dOverR = distanceM / EARTH_RADIUS;
+
+  const phi2 = Math.asin(
+    Math.sin(phi1)*Math.cos(dOverR) +
+    Math.cos(phi1)*Math.sin(dOverR)*Math.cos(theta)
+  );
+  let lam2 = lam1 + Math.atan2(
+    Math.sin(theta)*Math.sin(dOverR)*Math.cos(phi1),
+    Math.cos(dOverR) - Math.sin(phi1)*Math.sin(phi2)
+  );
+  let lat2 = toDeg(phi2);
+  let lon2 = toDeg(lam2);
+  lon2 = ((lon2 + 540) % 360) - 180; // -180..+180に正規化
+
+  return [lat2, lon2];
+}
+
+/** 図形(GeoJSON LineString)のバウンディングボックス中心を返す */
+function getBBcenter(geoJson) {
+  let minLon =  180, maxLon = -180;
+  let minLat =   90, maxLat =  -90;
+  for (const [lon, lat] of geoJson.geometry.coordinates) {
+    if (lon < minLon) minLon = lon;
+    if (lon > maxLon) maxLon = lon;
+    if (lat < minLat) minLat = lat;
+    if (lat > maxLat) maxLat = lat;
+  }
+  return {
+    lon: (minLon + maxLon) / 2,
+    lat: (minLat + maxLat) / 2
+  };
+}
+
+/**
+ * 図形(GeoJSON LineString)から、
+ *   - shapeCenter: 中心緯度経度
+ *   - shapeVectors: 各頂点が (中心から距離m, ベアリングdeg) いくつ という配列
+ * を求め、まとめて返す
+ */
+function prepareShapeData(geoJson) {
+  const center = getBBcenter(geoJson);
+  const coords = geoJson.geometry.coordinates; // [ [lon,lat], ... ]
+  const vectors = coords.map(([lon, lat]) => {
+    const dist = haversineDistance(center.lat, center.lon, lat, lon);
+    const bear = initialBearing(center.lat, center.lon, lat, lon);
+    return { distance: dist, bearing: bear };
+  });
+  return {
+    name: geoJson.properties.name,
+    centerLat: center.lat,
+    centerLon: center.lon,
+    shapeVectors: vectors
+  };
+}
+
+/**
+ * shapeData と 「配置先の中心 newCenterLat, newCenterLon」から
+ * 新たに再配置したLineString GeoJSONを作る
+ */
+function buildLineStringAtCenter(shapeData, newCenterLat, newCenterLon) {
+  const newCoords = shapeData.shapeVectors.map(({distance, bearing}) => {
+    const [lat2, lon2] = destinationPoint(newCenterLat, newCenterLon, distance, bearing);
+    return [lon2, lat2]; // GeoJSONは [lon, lat] 順
+  });
+  return {
+    type: "Feature",
+    properties: { name: shapeData.name },
+    geometry: {
+      type: "LineString",
+      coordinates: newCoords
+    }
+  };
+}
+
+/**********************************************************************
+ * 3. 「東京23区」「マンハッタン島」の2つをリスト化し、
+ *    - 色や初期状態(checked)を設定
+ *    - prepareShapeData() で shapeVectors を事前計算
+ **********************************************************************/
+const shapes = [
+  {
+    id: "tokyo",            // HTML側のcheckbox IDと対応
+    label: "東京23区外周",  // 表示名(サンプル用)
+    color: "red",
+    checked: true,         // 初期は表示
+    geoJson: tokyo23Line,
+    shapeData: null,        // prepareShapeData後に格納
+    layer: null             // Leaflet Layerを保持
+  },
+  {
+    id: "manhattan",
+    label: "マンハッタン",
+    color: "green",
+    checked: false,
+    geoJson: manhattanLine,
+    shapeData: null,
+    layer: null
+  },
+  {
+    id: "scito",
+    label: "東京科学大学",
+    color: "blue",
+    checked: false,
+    geoJson: scitokyoLine,
+    shapeData: null,
+    layer: null
+  }
+];
+
+// 事前計算
+for (const s of shapes) {
+  s.shapeData = prepareShapeData(s.geoJson);
+}
+
+/**********************************************************************
+ * 4. Leaflet地図を初期化
+ **********************************************************************/
+const map = L.map("map", {
+  center: [35.6895, 139.6917], // 東京付近
+  zoom: 10
+});
+L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+  attribution: '&copy; OpenStreetMap contributors'
+}).addTo(map);
+
+/**********************************************************************
+ * 5. 地図上で各図形を再配置・再描画する関数
+ **********************************************************************/
+function updateShapes() {
+  const center = map.getCenter(); // {lat, lng}
+
+  for (const s of shapes) {
+    // まず既存レイヤがあれば削除
+    if (s.layer) {
+      map.removeLayer(s.layer);
+      s.layer = null;
+    }
+    // チェックがONのものだけ再配置
+    if (s.checked) {
+      const newGeoJson = buildLineStringAtCenter(s.shapeData, center.lat, center.lng);
+      s.layer = L.geoJSON(newGeoJson, {
+        style: {
+          color: s.color,
+          weight: 3
+        }
+      }).addTo(map);
+    }
+  }
+}
+
+/**********************************************************************
+ * 6. チェックボックスと連動
+ *    - チェック状態が変わったら shapes[] に反映し、再描画
+ **********************************************************************/
+const cbTokyo = document.getElementById("cbTokyo");
+const cbManhattan = document.getElementById("cbManhattan");
+const cbScitokyo = document.getElementById("cbScitokyo");
+
+// 初期状態を shapes[].checked に合わせるならここでセット
+cbTokyo.checked = shapes.find(s => s.id === "tokyo").checked;
+cbManhattan.checked = shapes.find(s => s.id === "manhattan").checked;
+cbScitokyo.checked = shapes.find(s => s.id === "scito").checked;
+
+// イベントリスナー
+cbTokyo.addEventListener("change", () => {
+  const shape = shapes.find(s => s.id === "tokyo");
+  shape.checked = cbTokyo.checked;
+  updateShapes();
+});
+cbManhattan.addEventListener("change", () => {
+  const shape = shapes.find(s => s.id === "manhattan");
+  shape.checked = cbManhattan.checked;
+  updateShapes();
+});
+cbScitokyo.addEventListener("change", () => {
+  const shape = shapes.find(s => s.id === "scito");
+  shape.checked = cbScitokyo.checked;
+  updateShapes();
+});
+
+/**********************************************************************
+ * 7. 地図をドラッグ/ズームするたびに再配置
+ *    ('move' はドラッグ中も頻繁に呼ばれます。重ければ 'moveend' でもOK)
+ **********************************************************************/
+map.on("move", () => {
+  updateShapes();
+});
+
+// 初期描画
+updateShapes();
+</script>
+</body>
+</html>
